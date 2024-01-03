@@ -6,7 +6,6 @@ on:
 
 jobs:
   docker:
-    runs-on: DO
     steps:
       - name: Clear Space
         run: |
