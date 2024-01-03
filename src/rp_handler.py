@@ -5,6 +5,9 @@ Contains the handler function that will be called by the serverless.
 import os
 import base64
 import concurrent.futures
+from openai import OpenAI
+import sys
+
 
 import torch
 from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, AutoencoderKL
@@ -100,6 +103,17 @@ def make_scheduler(name, config):
         "DPMSolverMultistep": DPMSolverMultistepScheduler.from_config(config),
     }[name]
 
+client = OpenAI(
+    # This is the default and can be omitted
+    api_key=os.environ.get("OPENAI_API_KEY"),
+)
+
+def is_safe_prompt(prompttext):
+    moderation_response = client.moderations.create(input=prompttext)
+    if moderation_response['results']['flagged']:
+        print(f'Input "{prompttext}" was flagged!', file=sys.stderr)
+
+    return moderation_response['results'][0]['flagged']
 
 @torch.inference_mode()
 def generate_image(job):
@@ -114,6 +128,9 @@ def generate_image(job):
     if 'errors' in validated_input:
         return {"error": validated_input['errors']}
     job_input = validated_input['validated_input']
+
+    if not(is_safe_prompt(job_input['prompt'])):
+        return {"error": "Prompt has been flagged, since it does not comply with OpenAI Standards"}
 
     starting_image = job_input['image_url']
 
